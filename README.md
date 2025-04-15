@@ -35,8 +35,8 @@
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-username/jwt-auth-ts.git
-cd jwt-auth-ts
+git clone https://github.com/DoCaoLong/API-Authen-JWT.git
+cd API-Authen-JWT
 npm install
 ```
 
@@ -85,3 +85,10 @@ Server runs on: `http://localhost:5000`
 1. Import the included file: `postman_collection.json`
 2. Set `{{BASE_URL}} = http://localhost:5000`
 3. Update `{{accessToken}}` in auth header after login for protected routes
+
+
+https://www.google.com/recaptcha/admin/create
+FE
+<!-- 6Lf-CRgrAAAAAI68RUHJkHNEOucmp9R84t75TJsR -->
+BE
+<!-- 6Lf-CRgrAAAAALxdNLJ9yhg0VSbQKRw7xX5QcTbu -->
