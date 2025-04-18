@@ -103,9 +103,10 @@ class AuthService {
     async loginWith2FA(email: string, password: string) {
         const user = await userRepository.findByEmail(email);
         if (!user || !(await bcrypt.compare(password, user.password))) {
-            throw new Error("Invalid credentials");
+            throw new HttpError("Invalid credentials", 401);
         }
 
+        // Kiểm tra xem người dùng có bật 2FA không
         if (user.twoFactorEnabled) {
             // Tạo 1 mã tạm thời để xác thực 2FA
             const tempToken = jwt.sign(

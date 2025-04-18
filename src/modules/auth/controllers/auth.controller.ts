@@ -46,15 +46,25 @@ export const logout = async (req: Request, res: Response) => {
 };
 
 export const logoutAll = async (req: AuthRequest, res: Response) => {
-    if (!req.userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.userId)
+        return res
+            .status(StatusCodes.UNAUTHORIZED)
+            .json(HttpResponse.unauthorized());
     await authService.logoutAll(req.userId);
     res.json({ message: "Logged out from all devices" });
 };
 
 export const forgotPassword = async (req: Request, res: Response) => {
-    const { email } = req.body;
-    await authService.forgotPassword(email);
-    res.json({ message: "Reset email sent if account exists" });
+    try {
+        const { email } = req.body;
+        await authService.forgotPassword(email);
+        res.json({ message: "Reset email sent if account exists" });
+    } catch (error: any) {
+        console.error("Error during forgot password:", error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(
+            HttpResponse.internalServerError(error.message)
+        );
+    }
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
@@ -71,24 +81,26 @@ export const loginWithCaptcha = async (req: Request, res: Response) => {
             const isHuman = await verifyCaptcha(captchaToken);
             if (!isHuman)
                 return res
-                    .status(403)
+                    .status(StatusCodes.FORBIDDEN)
                     .json({ message: "Captcha validation failed!" });
         }
 
         const loginResult = await authService.loginWith2FA(email, password);
 
         if (loginResult.requires2FA) {
-            return res.status(200).json({
+            return res.status(StatusCodes.OK).json({
                 requires2FA: true,
                 tempToken: loginResult.tempToken,
                 message: "OTP required",
             });
         }
 
-        return res.status(200).json(loginResult);
-    } catch (error) {
-        console.error("Error during login with captcha:", error);
-        return res.status(500).json({ message: "Internal server error" });
+        return res.status(StatusCodes.OK).json(loginResult);
+    } catch (error: any) {
+        // console.error("Error during login with captcha:", error);
+        return res
+            .status(StatusCodes.INTERNAL_SERVER_ERROR)
+            .json(HttpResponse.internalServerError(error.message));
     }
 };
 
@@ -96,8 +108,11 @@ export const verifyOTP = async (req: Request, res: Response) => {
     try {
         const { otpCode, tempToken } = req.body;
         const result = await authService.verify2FA(tempToken, otpCode);
-        if (!result) return res.status(401).json({ message: "Invalid OTP" });
-        return res.status(200).json(result);
+        if (!result)
+            return res
+                .status(StatusCodes.UNAUTHORIZED)
+                .json({ message: "Invalid OTP" });
+        return res.status(StatusCodes.OK).json(result);
     } catch (error: any) {
         console.error("Error during OTP verification:", error);
         return res
@@ -110,7 +125,7 @@ export const enable2FA = async (req: Request, res: Response) => {
     try {
         const { userId } = req.body;
         const result = await authService.setup2FA(userId);
-        return res.status(StatusCodes.OK).json(result)
+        return res.status(StatusCodes.OK).json(result);
     } catch (error: any) {
         console.error("Error during 2FA setup:", error);
         return res
