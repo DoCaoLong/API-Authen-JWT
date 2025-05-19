@@ -10,6 +10,11 @@ export interface LoginDTO {
     email: string;
     password: string;
 }
+export interface loginWithCaptchaDTO {
+    email: string;
+    password: string;
+    captchaToken: string;
+}
 export interface RefreshDTO {
     refreshToken: string;
     userId: string;

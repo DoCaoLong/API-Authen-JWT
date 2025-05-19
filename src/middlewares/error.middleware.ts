@@ -1,16 +1,42 @@
 import { Request, Response, NextFunction } from 'express';
 import { HttpError } from '~/utils/HttpError';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 // This middleware handles errors that occur during the request processing
 export const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack);
-  if (err instanceof HttpError) {
-    return res.status(err.statusCode).json({ message: err.message });
+  if (!isProduction) {
+    console.error(`❌ Error: ${err.message}`);
+    console.error(err.stack);
   }
-  res.status(500).json({ message: 'Internal Server Error' });
+  
+  if (err instanceof HttpError) {
+    return res.status(err.statusCode).json({
+      success: false,
+      error: {
+        message: err.message,
+        statusCode: err.statusCode,
+        ...(isProduction ? {} : { stack: err.stack })
+      }
+    });
+  }
+
+  res.status(500).json({
+    success: false,
+    error: {
+      message: 'Internal Server Error',
+      ...(isProduction ? {} : { stack: err.stack })
+    }
+  });
 };
 
-// This middleware handles 404 errors for routes that are not found
+// Middleware xử lý lỗi 404
 export const notFoundHandler = (req: Request, res: Response) => {
-  res.status(404).json({ message: 'Not Found' });
-};  
+  res.status(404).json({
+    success: false,
+    error: {
+      message: 'Resource not found',
+      path: req.originalUrl
+    }
+  });
+};

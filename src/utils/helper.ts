@@ -45,37 +45,11 @@ export const isValidName = (name: string) => {
     const regex = /^[a-zA-Z\s]{2,30}$/;
     return regex.test(name);
 };
+
 export const isValidAge = (age: number) => {
     return age >= 0 && age <= 120;
 };
-export const isValidZipCode = (zip: string) => {
-    const regex = /^\d{5}(-\d{4})?$/;
-    return regex.test(zip);
-};
-export const isValidCreditCard = (card: string) => {
-    const regex =
-        /^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9]{2})[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|7[0-9]{15})$/;
-    return regex.test(card);
-};
-export const isValidIpAddress = (ip: string) => {
-    const regex =
-        /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-    return regex.test(ip);
-};
-export const isValidHexColor = (color: string) => {
-    const regex = /^#([0-9A-F]{3}|[0-9A-F]{6})$/i;
-    return regex.test(color);
-};
-export const isValidBase64 = (str: string) => {
-    const regex = /^(data:image\/[a-zA-Z]+;base64,)?([A-Za-z0-9+/=]+)$/;
-    return regex.test(str);
-};
-export const isValidLatitude = (lat: number) => {
-    return lat >= -90 && lat <= 90;
-};
-export const isValidLongitude = (lon: number) => {
-    return lon >= -180 && lon <= 180;
-};
+
 export const isEmpty = (obj: any) => {
     return Object.keys(obj).length === 0;
 };

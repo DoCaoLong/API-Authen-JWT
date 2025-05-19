@@ -1,149 +1,141 @@
 import { StatusCodes } from "http-status-codes";
 
+type ResponseData<T = any> = {
+    status: "success" | "error";
+    code: number;
+    message: string;
+    data?: T;
+    error_code?: string;
+    errors?: any;
+};
+
 export class HttpResponse {
-    static paginate<T>(data: T, message = "Lấy dữ liệu thành công.") {
-        return {
-            status: "success",
-            code: StatusCodes.OK,
-            message,
-            data,
-        };
-    }
-
-    static created<T>(data: T, message = "Dữ liệu đã được tạo thành công.") {
-        return {
-            status: "success",
-            code: StatusCodes.CREATED,
-            message,
-            data,
-        };
-    }
-
-    static updated<T>(
+    // Success responses
+    static success<T>(
         data: T,
-        message = "Dữ liệu đã được cập nhật thành công."
-    ) {
-        return {
-            status: "success",
-            code: StatusCodes.OK,
-            message,
-            data,
-        };
+        message = "Thao tác thành công."
+    ): ResponseData<T> {
+        return { status: "success", code: StatusCodes.OK, message, data };
     }
 
-    static deleted(message = "Dữ liệu đã được xóa thành công.") {
-        return {
-            status: "success",
-            code: StatusCodes.OK,
-            message,
-        };
+    static created<T>(
+        data: T,
+        message = "Dữ liệu đã được tạo thành công."
+    ): ResponseData<T> {
+        return { status: "success", code: StatusCodes.CREATED, message, data };
     }
 
-    static error(
-        errors: any,
-        message = "Dữ liệu không hợp lệ.",
-        code = StatusCodes.BAD_REQUEST
-    ) {
+    static noContent(message = "Không có dữ liệu."): ResponseData {
+        return { status: "success", code: StatusCodes.NO_CONTENT, message };
+    }
+
+    // Error responses
+    private static errorResponse(
+        code: number,
+        message: string,
+        errorCode: string,
+        errors?: any
+    ): ResponseData {
         return {
             status: "error",
             code,
             message,
-            error_code: "ERR_BAD_REQUEST",
+            error_code: errorCode,
             errors,
         };
     }
 
-    static noContent(message = "Không có dữ liệu.") {
-        return {
-            status: "success",
-            code: StatusCodes.NO_CONTENT,
+    static badRequest(
+        errors: any,
+        message = "Dữ liệu không hợp lệ."
+    ): ResponseData {
+        return this.errorResponse(
+            StatusCodes.BAD_REQUEST,
             message,
-        };
+            "ERR_BAD_REQUEST",
+            errors
+        );
     }
 
-    static badRequest(errors: any, message = "Dữ liệu không hợp lệ.") {
-        return {
-            status: "error",
-            code: StatusCodes.BAD_REQUEST,
+    static unauthorized(
+        message = "Truy cập không hợp lệ.",
+        errorCode = "ERR_UNAUTHORIZED_ACCESS"
+    ): ResponseData {
+        return this.errorResponse(
+            StatusCodes.UNAUTHORIZED,
             message,
-            error_code: "ERR_BAD_REQUEST",
-            errors,
-        };
+            errorCode
+        );
     }
 
-    static unauthorized(message = "Không được phép truy cập.") {
-        return {
-            status: "error",
-            code: StatusCodes.UNAUTHORIZED,
+    static forbidden(message = "Không có quyền truy cập."): ResponseData {
+        return this.errorResponse(
+            StatusCodes.FORBIDDEN,
             message,
-            error_code: "ERR_UNAUTHORIZED",
-        };
+            "ERR_FORBIDDEN"
+        );
     }
 
-    static forbidden(message = "Không có quyền truy cập.") {
-        return {
-            status: "error",
-            code: StatusCodes.FORBIDDEN,
+    static notFound(message = "Không tìm thấy dữ liệu."): ResponseData {
+        return this.errorResponse(
+            StatusCodes.NOT_FOUND,
             message,
-            error_code: "ERR_FORBIDDEN",
-        };
+            "ERR_NOT_FOUND"
+        );
     }
 
-    static notFound(message = "Không tìm thấy dữ liệu.") {
-        return {
-            status: "error",
-            code: StatusCodes.NOT_FOUND,
+    static conflict(message = "Dữ liệu đã tồn tại."): ResponseData {
+        return this.errorResponse(
+            StatusCodes.CONFLICT,
             message,
-            error_code: "ERR_NOT_FOUND",
-        };
-    }
-
-    static conflict(message = "Dữ liệu đã tồn tại.") {
-        return {
-            status: "error",
-            code: StatusCodes.CONFLICT,
-            message,
-            error_code: "ERR_CONFLICT",
-        };
+            "ERR_CONFLICT"
+        );
     }
 
     static tooManyRequests(
-        message = "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau."
-    ) {
-        return {
-            status: "error",
-            code: StatusCodes.TOO_MANY_REQUESTS,
+        message = "Quá nhiều yêu cầu. Thử lại sau."
+    ): ResponseData {
+        return this.errorResponse(
+            StatusCodes.TOO_MANY_REQUESTS,
             message,
-            error_code: "ERR_TOO_MANY_REQUESTS",
-        };
+            "ERR_TOO_MANY_REQUESTS"
+        );
     }
 
-    static internalServerError(message = "Lỗi máy chủ.") {
-        return {
-            status: "error",
-            code: StatusCodes.INTERNAL_SERVER_ERROR,
+    static internalServerError(message = "Lỗi máy chủ."): ResponseData {
+        return this.errorResponse(
+            StatusCodes.INTERNAL_SERVER_ERROR,
             message,
-            error_code: "ERR_INTERNAL_SERVER",
-        };
+            "ERR_INTERNAL_SERVER"
+        );
     }
 
-    static serviceUnavailable(message = "Dịch vụ tạm thời không khả dụng.") {
-        return {
-            status: "error",
-            code: StatusCodes.SERVICE_UNAVAILABLE,
+    static serviceUnavailable(
+        message = "Dịch vụ tạm thời không khả dụng."
+    ): ResponseData {
+        return this.errorResponse(
+            StatusCodes.SERVICE_UNAVAILABLE,
             message,
-            error_code: "ERR_SERVICE_UNAVAILABLE",
-        };
+            "ERR_SERVICE_UNAVAILABLE"
+        );
     }
-    static twoFactorRequired(message = "Invalid OTP") {
-        return {
-            status: "error",
-            code: StatusCodes.UNAUTHORIZED,
+
+
+
+    // Two-Factor Authentication responses
+    static twoFactorRequired(
+        message = "Yêu cầu xác minh hai yếu tố."
+    ): ResponseData {
+        return this.errorResponse(
+            StatusCodes.UNAUTHORIZED,
             message,
-            error_code: "ERR_TWO_FACTOR_REQUIRED",
-        };
+            "ERR_TWO_FACTOR_REQUIRED"
+        );
     }
-    static twoFactorEnabled(message = "2FA đã được bật thành công.") {
+
+    static twoFactorEnabled(
+        message = "Xác thực hai yếu tố đã được bật."
+    ): ResponseData {
         return {
             status: "success",
             code: StatusCodes.OK,
@@ -151,7 +143,10 @@ export class HttpResponse {
             error_code: "ERR_TWO_FACTOR_ENABLED",
         };
     }
-    static twoFactorDisabled(message = "2FA đã được tắt thành công.") {
+
+    static twoFactorDisabled(
+        message = "Xác thực hai yếu tố đã được tắt."
+    ): ResponseData {
         return {
             status: "success",
             code: StatusCodes.OK,

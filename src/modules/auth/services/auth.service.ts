@@ -3,17 +3,21 @@ import jwt from "jsonwebtoken";
 import { IUser } from "../models/user.model";
 import { generateAccessToken, generateRefreshToken } from "../../../utils/jwt";
 import userRepository from "../repositories/user.repository";
-import { sendResetPasswordEmail } from "../../../utils/mailer";
+import {
+    sendResetPasswordEmail,
+    sendVerificationEmail,
+} from "../../../utils/mailer";
 import { HttpError } from "~/utils/HttpError";
 import { RegisterDTO } from "~/modules/auth/dtos/auth.dto";
 import speakeasy from "speakeasy"; // tạo mã OTP 2FA
 import qrcode from "qrcode";
+import mongoose from "mongoose";
 
 class AuthService {
     async register(data: RegisterDTO): Promise<IUser> {
         const existEmail = await userRepository.findByEmail(data.email);
         if (existEmail) {
-            throw new HttpError("Email is exist", 400);
+            throw new HttpError("Email is exist", 400, "ERR_CONFLICT");
         }
         const hashedPassword = await bcrypt.hash(data.password, 10);
         const user = await userRepository.register({
@@ -21,6 +25,12 @@ class AuthService {
             email: data.email.toLowerCase(),
             password: hashedPassword,
         });
+        const verifyToken = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET!,
+            { expiresIn: "1d" }
+        );
+        await sendVerificationEmail(user.email, verifyToken, user.name);
         const { password: _, ...userNotPassword } = user.toObject();
         return userNotPassword as IUser;
     }
@@ -31,7 +41,7 @@ class AuthService {
     ): Promise<{ accessToken: string; refreshToken: string; user: IUser }> {
         const user = await userRepository.findByEmail(email);
         if (!user || !(await bcrypt.compare(password, user.password))) {
-            throw new HttpError("Invalid credentials", 401);
+            throw new HttpError("Invalid credentials", 401, "ERR_BAD_REQUEST");
         }
         const accessToken = generateAccessToken(user);
         const refreshToken = generateRefreshToken(user);
@@ -101,28 +111,38 @@ class AuthService {
     }
 
     async loginWith2FA(email: string, password: string) {
-        const user = await userRepository.findByEmail(email);
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-            throw new HttpError("Invalid credentials", 401);
-        }
+        try {
+            // Kiểm tra thông tin đăng nhập
+            const user = await userRepository.findByEmail(email);
+            if (!user || !(await bcrypt.compare(password, user.password))) {
+                throw new HttpError(
+                    "Invalid credentials",
+                    401,
+                    "ERR_BAD_REQUEST"
+                );
+            }
 
-        // Kiểm tra xem người dùng có bật 2FA không
-        if (user.twoFactorEnabled) {
-            // Tạo 1 mã tạm thời để xác thực 2FA
-            const tempToken = jwt.sign(
-                { userId: user.id },
-                process.env.JWT_SECRET!,
-                { expiresIn: "10m" }
-            );
-            return { requires2FA: true, tempToken };
+            // Kiểm tra xem người dùng có bật 2FA không
+            if (user.twoFactorEnabled) {
+                // Tạo 1 mã tạm thời để xác thực 2FA
+                const tempToken = jwt.sign(
+                    { userId: user.id },
+                    process.env.JWT_SECRET!,
+                    { expiresIn: "5m" }
+                );
+                return { requires2FA: true, tempToken };
+            }
+            // Nếu không bật 2FA thì trả về user, accessToken và refreshToken
+            const { password: _, ...userNotPassword } = user.toObject();
+            const safeUser = userNotPassword as IUser;
+            const accessToken = generateAccessToken(safeUser);
+            const refreshToken = generateRefreshToken(safeUser);
+            await userRepository.addRefreshToken(user._id, refreshToken);
+            return { accessToken, refreshToken, user: safeUser };
+        } catch (error) {
+            if (error instanceof HttpError) throw error;
+            throw new HttpError("Đăng nhập thất bại", 500, "ERR_INTERNAL");
         }
-        // Nếu không bật 2FA thì trả về user, accessToken và refreshToken
-        const { password: _, ...userNotPassword } = user.toObject();
-        const safeUser = userNotPassword as IUser;
-        const accessToken = generateAccessToken(safeUser);
-        const refreshToken = generateRefreshToken(safeUser);
-        await userRepository.addRefreshToken(user._id, refreshToken);
-        return { accessToken, refreshToken, user: safeUser };
     }
 
     async verify2FA(tempToken: string, otpCode: string) {
@@ -130,14 +150,25 @@ class AuthService {
             userId: string;
         };
         const user = await userRepository.findById(payload.userId);
-        if (!user) throw new Error("User not found");
+        if (!user)
+            throw new HttpError("User not found", 400, "ERR_BAD_REQUEST");
+
+        // Kiểm tra xem người dùng có bật 2FA không
+        if (!user.twoFactorSecret) {
+            throw new HttpError(
+                "Two-factor authentication is not set up for this user.",
+                400,
+                "ERR_2FA_NOT_SETUP"
+            );
+        }
 
         const verified = speakeasy.totp.verify({
             secret: user.twoFactorSecret,
             encoding: "base32",
             token: otpCode,
         });
-        if (!verified) throw new Error("Invalid OTP");
+        if (!verified)
+            throw new HttpError("Invalid TOTP code", 401, "ERR_BAD_REQUEST");
 
         // Nếu OTP hợp lệ thì tạo accessToken và refreshToken
         const { password: _, ...userNotPassword } = user.toObject();
@@ -147,7 +178,11 @@ class AuthService {
         return { accessToken, refreshToken, user: safeUser };
     }
 
-    async setup2FA(userId: string) {
+    async enable2FA(userId: string) {
+        const user = await userRepository.findById(userId);
+        if (!user)
+            throw new HttpError("User not found", 400, "ERR_BAD_REQUEST");
+
         const secret = speakeasy.generateSecret({ name: `MyApp (${userId})` });
         await userRepository.update2FA(userId, {
             twoFactorSecret: secret.base32,
@@ -167,6 +202,17 @@ class AuthService {
             twoFactorSecret: null,
             twoFactorEnabled: false,
         });
+    }
+
+    async verifyAccount(userId: string): Promise<void> {
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            throw new HttpError("Invalid user ID", 400, "ERR_NOT_FOUND");
+        }
+        const user = await userRepository.findById(userId);
+        if (!user)
+            throw new HttpError("User not found", 404, "ERR_BAD_REQUEST");
+        user.isVerified = true;
+        await user.save();
     }
 }
 
